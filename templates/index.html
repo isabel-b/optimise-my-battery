@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battery Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --cheap: #f0efec;
+    --import: #2a78d6; --export: #eb6834; --pv: #1baf7a; --load: #eda100; --soc: #4a3aa7;
+    --heat0: #fcfcfb; --heat1: #0d366b; --good: #006300; --bad: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --cheap: #262624;
+      --import: #3987e5; --export: #d95926; --pv: #199e70; --load: #c98500; --soc: #9085e9;
+      --heat0: #1a1a19; --heat1: #9ec5f4; --good: #0ca30c; --bad: #e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 18px; margin: 0 16px 0 0; }
+  .seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 6px; overflow: hidden; }
+  .seg button { background: transparent; color: var(--ink2); border: 0; padding: 6px 12px; cursor: pointer; font: inherit; }
+  .seg button.on { background: var(--ink); color: var(--page); }
+  button.act { background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  button.act:disabled { opacity: .5; cursor: default; }
+  .spacer { flex: 1; }
+  #status { color: var(--muted); font-size: 12px; }
+  main { padding: 16px 24px 48px; max-width: 1280px; margin: 0 auto; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .tile .k { color: var(--ink2); font-size: 12px; }
+  .tile .v { font-size: 24px; font-weight: 600; margin-top: 2px; }
+  .tile .u { color: var(--muted); font-size: 12px; margin-left: 3px; font-weight: 400; }
+  .tile .s { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  section h2 { font-size: 14px; margin: 0 0 4px; }
+  section p.sub { color: var(--ink2); margin: 0 0 12px; font-size: 12px; }
+  .chart { position: relative; height: 300px; }
+  .chart.short { height: 150px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink2); margin-bottom: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+  #heat { display: grid; grid-template-columns: 52px repeat(24, 1fr); gap: 2px; font-size: 11px; color: var(--muted); }
+  #heat .lbl { padding-right: 6px; text-align: right; line-height: 14px; }
+  #heat .cell { height: 14px; border-radius: 2px; background: var(--heat0); }
+  #heat .hh { text-align: center; }
+  .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--page); padding: 6px 8px; border-radius: 4px; font-size: 12px; display: none; z-index: 10; white-space: nowrap; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--ink2); font-weight: 500; font-size: 12px; }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  .findings li { margin: 4px 0; }
+  code { background: var(--cheap); padding: 1px 5px; border-radius: 3px; }
+  .live { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 13px; }
+  .live div b { display: block; font-size: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Battery Tracker</h1>
+  <div class="seg" id="range">
+    <button data-days="7">7d</button><button data-days="14">14d</button>
+    <button data-days="30">30d</button><button data-days="60" class="on">60d</button><button data-days="0">All</button>
+  </div>
+  <button class="act" id="btnFetch" title="Fetches any missing days plus today. One API call per day.">Fetch new days</button>
+  <button class="act" id="btnLive" title="One API call">Live now</button>
+  <button class="act" id="btnSched" title="One or two API calls">Re-read schedule</button>
+  <span class="spacer"></span>
+  <span id="status"></span>
+</header>
+<main>
+  <div class="tiles" id="tiles"></div>
+
+  <section id="liveBox" hidden>
+    <h2>Live <span id="liveTs" style="color:var(--muted);font-weight:400"></span></h2>
+    <div class="live" id="live"></div>
+  </section>
+
+  <section>
+    <h2>Energy per day</h2>
+    <p class="sub">kWh per calendar day from the 5-minute samples. Hover a bar for the value.</p>
+    <div class="legend" id="lgDaily"></div>
+    <div class="chart"><canvas id="cDaily"></canvas></div>
+  </section>
+
+  <section>
+    <h2>Average day</h2>
+    <p class="sub">Mean power by time of day over the selected range. The shaded band is the cheap-rate window.</p>
+    <div class="legend" id="lgProf"></div>
+    <div class="chart"><canvas id="cProf"></canvas></div>
+    <h2 style="margin-top:12px">Battery state of charge</h2>
+    <div class="chart short"><canvas id="cSoc"></canvas></div>
+  </section>
+
+  <section>
+    <h2>Grid import by hour</h2>
+    <p class="sub">kWh imported in each hour of each day. Dark cells outside 11:00 to 16:00 are the expensive ones.</p>
+    <div id="heat"></div>
+  </section>
+
+  <section>
+    <h2>What the data says</h2>
+    <ul class="findings" id="findings"></ul>
+  </section>
+
+  <section>
+    <h2>Cost under Ergon tariffs</h2>
+    <p class="sub">Dollars per day for the selected range, 1 July 2026 rates inc GST, feed-in credited. "As needed" tops up in the cheap window only as much as that night needs; "Fill" always fills to 100% in the window. Both include 8% charging losses.</p>
+    <table id="costs"></table>
+  </section>
+
+  <section>
+    <h2>Inverter schedule</h2>
+    <p class="sub">Time segments currently set on the inverter, as last read from the API.</p>
+    <table id="sched"></table>
+  </section>
+</main>
+<div class="tip" id="tip"></div>
+
+<script>
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL = () => ({ load: css('--load'), pv: css('--pv'), import: css('--import'), export: css('--export'), soc: css('--soc') });
+const NAMES = { load: 'House load', pv: 'Solar', import: 'Grid import', export: 'Grid export' };
+let days = 60, charts = {};
+
+Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+Chart.defaults.font.size = 11;
+
+function status(t) { document.getElementById('status').textContent = t; }
+function fmt(x, d = 1) { return x == null ? '–' : Number(x).toFixed(d); }
+
+function baseOpts(unit) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: css('--ink'), titleColor: css('--page'), bodyColor: css('--page'),
+      callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y, 2)} ${unit}` } } },
+    scales: {
+      x: { grid: { display: false }, border: { color: css('--axis') }, ticks: { color: css('--muted'), maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+      y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--muted') }, title: { display: true, text: unit, color: css('--ink2') } },
+    },
+  };
+}
+
+function legend(el, keys, col) {
+  document.getElementById(el).innerHTML = keys.map(k => `<span><i style="background:${col[k]}"></i>${NAMES[k]}</span>`).join('');
+}
+
+function mk(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+
+const cheapBand = {
+  id: 'cheapBand',
+  beforeDatasetsDraw(chart, _, opts) {
+    const { ctx, chartArea: a, scales: { x } } = chart;
+    if (!a) return;
+    ctx.save(); ctx.fillStyle = css('--cheap');
+    const x0 = x.getPixelForValue(opts.start), x1 = x.getPixelForValue(opts.end);
+    ctx.fillRect(x0, a.top, x1 - x0, a.bottom - a.top); ctx.restore();
+  },
+};
+
+function renderTiles(d) {
+  const s = d.summary, ls = d.last_sample;
+  const tiles = [
+    ['House load', fmt(s.load_mean), 'kWh/day'],
+    ['Solar', fmt(s.pv_mean), 'kWh/day'],
+    ['Grid import', fmt(s.import_mean), 'kWh/day', `${fmt(s.import_outside_cheap_mean)} of it at expensive rates`],
+    ['Self-sufficiency', fmt(s.self_sufficiency * 100, 0), '%'],
+    ['Battery capacity', fmt(d.capacity, 1), 'kWh', 'estimated from SoC swings'],
+    ['Last sample SoC', fmt(ls.SoC, 0), '%', ls.ts],
+  ];
+  document.getElementById('tiles').innerHTML = tiles.map(([k, v, u, sub]) =>
+    `<div class="tile"><div class="k">${k}</div><div class="v">${v}<span class="u">${u}</span></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`).join('');
+}
+
+function renderDaily(d) {
+  const col = COL(); const keys = ['load', 'pv', 'import', 'export'];
+  legend('lgDaily', keys, col);
+  mk('cDaily', { type: 'bar',
+    data: { labels: d.daily.dates.map(x => x.slice(5)), datasets: keys.map(k => ({ label: NAMES[k], data: d.daily[k], backgroundColor: col[k], borderRadius: 3, borderSkipped: 'bottom', barPercentage: 0.9, categoryPercentage: 0.8 })) },
+    options: baseOpts('kWh') });
+}
+
+function renderProfile(d) {
+  const col = COL(); const keys = ['load', 'pv', 'import', 'export'];
+  legend('lgProf', keys, col);
+  const labels = d.profile.minutes.map(m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  const [cs, ce] = d.cheap.map(t => { const [h, m] = t.split(':').map(Number); return labels.indexOf(`${String(h).padStart(2, '0')}:${String(Math.floor(m / 10) * 10).padStart(2, '0')}`); });
+  const line = (k, c) => ({ label: NAMES[k] || k, data: d.profile[k], borderColor: c, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2 });
+  const hourTicks = { autoSkip: false, color: css('--muted'), maxRotation: 0, callback: (v, i) => (labels[i].endsWith(':00') && Number(labels[i].slice(0, 2)) % 3 === 0) ? labels[i] : null };
+  const o = baseOpts('kW'); o.plugins.cheapBand = { start: cs, end: ce }; o.scales.x.ticks = hourTicks;
+  mk('cProf', { type: 'line', data: { labels, datasets: keys.map(k => line(k, col[k])) }, options: o, plugins: [cheapBand] });
+  const o2 = baseOpts('%'); o2.plugins.cheapBand = { start: cs, end: ce }; o2.scales.y.min = 0; o2.scales.y.max = 100; o2.scales.x.ticks = hourTicks;
+  mk('cSoc', { type: 'line', data: { labels, datasets: [line('SoC', col.soc)] }, options: o2, plugins: [cheapBand] });
+}
+
+function renderHeat(d) {
+  const h = d.heatmap, max = Math.max(0.5, ...h.values.flat().filter(v => v != null));
+  const c0 = css('--heat0'), c1 = css('--heat1');
+  const mix = (t) => { // linear blend in sRGB is fine for a single-hue ramp at this size
+    const p = (c) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+    const a = p(c0), b = p(c1); return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',')})`;
+  };
+  let html = '<div class="lbl"></div>' + h.hours.map(x => `<div class="hh">${x % 3 === 0 ? String(x).padStart(2, '0') : ''}</div>`).join('');
+  h.values.forEach((row, i) => {
+    html += `<div class="lbl">${h.dates[i]}</div>` + row.map((v, j) => v == null
+      ? `<div class="cell" style="opacity:.35"></div>`
+      : `<div class="cell" data-t="${h.dates[i]} ${String(j).padStart(2, '0')}:00 · ${v.toFixed(2)} kWh" style="background:${mix(Math.pow(v / max, 0.7))}"></div>`).join('');
+  });
+  const el = document.getElementById('heat'); el.innerHTML = html;
+  const tip = document.getElementById('tip');
+  el.onmousemove = (e) => { const t = e.target.dataset.t; if (!t) { tip.style.display = 'none'; return; } tip.textContent = t; tip.style.display = 'block'; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px'; };
+  el.onmouseleave = () => tip.style.display = 'none';
+}
+
+function renderFindings(d) {
+  const s = d.summary, li = [];
+  li.push(`Grid import is <b>${fmt(s.import_mean)} kWh/day</b>: ${fmt(s.import_in_cheap_mean)} inside the cheap window and ${fmt(s.import_outside_cheap_mean)} outside it (median ${fmt(s.import_outside_cheap_median)}, bad day ${fmt(s.import_outside_cheap_p90)}).`);
+  if (s.soc_floor != null) li.push(`The battery reached its <b>${fmt(s.soc_floor, 0)}% floor on ${s.days_battery_hit_floor} of ${s.days} days</b>; daily minimum SoC is typically ${fmt(s.soc_min_median, 0)}%.`);
+  if (s.soc_at_window_end_median != null) li.push(`At the end of the cheap window the battery is at <b>${fmt(s.soc_at_window_end_median, 0)}%</b> on a typical day, but one day in ten it is below ${fmt(s.soc_at_window_end_p10, 0)}%.`);
+  if (s.held_back_hours && s.held_back_hours.length) li.push(`The battery is held back (no discharge despite a shortfall) from ${String(s.held_back_hours[0]).padStart(2, '0')}:00 to ${String(s.held_back_hours.at(-1) + 1).padStart(2, '0')}:00, importing ${fmt(s.held_back_import_per_day)} kWh/day at the cheap rate. That is the Backup segment doing its job.`);
+  if (s.topup_avoidable_per_day != null) li.push(`A grid top-up inside the cheap window on the days that need it would avoid <b>${fmt(s.topup_avoidable_per_day)} kWh/day</b> of expensive import (${fmt(s.topup_avoidable_share * 100, 0)}% of it). It was needed on ${s.topup_days} of ${s.days} days, typically ${fmt(s.topup_needed_median)} kWh.`);
+  document.getElementById('findings').innerHTML = li.map(x => `<li>${x}</li>`).join('');
+}
+
+function renderCosts(d) {
+  const rows = d.costs; if (!rows.length) { document.getElementById('costs').innerHTML = ''; return; }
+  const by = {}; rows.forEach(r => { (by[r.tariff] ||= {})[r.strategy] = r; });
+  let html = '<tr><th>Tariff</th><th>Actual $/day</th><th>As needed</th><th>Fill</th><th>Saving as needed</th><th>Saving fill</th><th>Import kWh/day</th></tr>';
+  for (const t of Object.keys(by)) {
+    const a = by[t].actual, f = by[t].foresight, l = by[t].fill;
+    const sv = (x) => `<td class="${x > 0.005 ? 'good' : x < -0.005 ? 'bad' : ''}">${x >= 0 ? '' : '−'}$${Math.abs(x).toFixed(2)}</td>`;
+    html += `<tr><td>${t}</td><td>$${a.per_day_$.toFixed(2)}</td><td>$${f.per_day_$.toFixed(2)}</td><td>$${l.per_day_$.toFixed(2)}</td>${sv(a.per_day_$ - f.per_day_$)}${sv(a.per_day_$ - l.per_day_$)}<td>${(a.import_kwh / d.summary.days).toFixed(1)}</td></tr>`;
+  }
+  document.getElementById('costs').innerHTML = html;
+}
+
+function renderSched(d) {
+  const s = d.schedule && (d.schedule.schedule || d.schedule);
+  const flag = d.schedule && d.schedule.flag;
+  if (!s || !s.groups) { document.getElementById('sched').innerHTML = '<tr><td>No schedule read yet. Click “Re-read schedule”.</td></tr>'; return; }
+  const p = (n) => String(n).padStart(2, '0');
+  let html = `<tr><th>Segment</th><th>Time</th><th>Mode</th><th>Min SoC on grid</th><th>Max SoC</th><th>Discharge power</th></tr>`;
+  s.groups.forEach((g, i) => { if (!g.enable) return;
+    html += `<tr><td>${i}</td><td>${p(g.startHour)}:${p(g.startMinute)} – ${p(g.endHour)}:${p(g.endMinute)}</td><td>${g.workMode}</td><td>${g.minSocOnGrid}%</td><td>${g.maxSoc}%</td><td>${g.fdPwr} W</td></tr>`; });
+  if (flag) html += `<tr><td colspan="6" style="text-align:left;color:var(--muted)">Scheduler ${flag.enable ? 'enabled' : 'disabled'}</td></tr>`;
+  document.getElementById('sched').innerHTML = html;
+}
+
+async function load() {
+  status('loading…');
+  const r = await fetch(`/api/overview?days=${days}`); const d = await r.json();
+  if (d.error) { status(d.error); return; }
+  renderTiles(d); renderDaily(d); renderProfile(d); renderHeat(d); renderFindings(d); renderCosts(d); renderSched(d);
+  status(`${d.summary.period} · ${d.summary.days} complete days`);
+}
+
+document.querySelectorAll('#range button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#range button').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  days = Number(b.dataset.days); load();
+});
+document.getElementById('btnFetch').onclick = async (e) => {
+  e.target.disabled = true; status('fetching from FoxCloud…');
+  const r = await fetch('/api/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 3 }) });
+  const j = await r.json(); status(j.ok ? 'fetched' : 'fetch failed'); console.log(j.log); e.target.disabled = false; load();
+};
+document.getElementById('btnSched').onclick = async (e) => {
+  e.target.disabled = true; status('reading schedule…');
+  const r = await fetch('/api/schedule/refresh', { method: 'POST' }); const j = await r.json(); console.log(j.log);
+  e.target.disabled = false; load();
+};
+document.getElementById('btnLive').onclick = async (e) => {
+  e.target.disabled = true; status('reading live values…');
+  const r = await fetch('/api/live'); const j = await r.json(); e.target.disabled = false;
+  if (j.error) { status(j.error); return; }
+  const box = document.getElementById('liveBox'); box.hidden = false;
+  document.getElementById('liveTs').textContent = j.ts;
+  const items = [['Solar', j.pvPower, 'kW'], ['House load', j.loadsPower, 'kW'], ['Grid import', j.gridConsumptionPower, 'kW'], ['Grid export', j.feedinPower, 'kW'],
+    ['Battery charge', j.batChargePower, 'kW'], ['Battery discharge', j.batDischargePower, 'kW'], ['SoC', j.SoC, '%'], ['Battery temp', j.batTemperature, '°C']];
+  document.getElementById('live').innerHTML = items.map(([k, v, u]) => `<div>${k}<b>${fmt(v, u === '%' ? 0 : 2)} <span style="font-size:12px;color:var(--muted)">${u}</span></b></div>`).join('');
+  status('live values read');
+};
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', load);
+load();
+</script>
+</body>
+</html>

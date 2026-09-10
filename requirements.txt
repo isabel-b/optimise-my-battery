@@ -1,0 +1,6 @@
+requests>=2.31
+pandas>=2.1
+matplotlib>=3.8
+python-dotenv>=1.0
+pytest>=8.0
+flask>=3.0
