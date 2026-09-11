@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Battery Tracker</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1c5cab">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="/static/icon-192.png">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
@@ -63,6 +69,21 @@
   code { background: var(--cheap); padding: 1px 5px; border-radius: 3px; }
   .live { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 13px; }
   .live div b { display: block; font-size: 18px; }
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  @media (max-width: 640px) {
+    header { padding: 10px 12px; gap: 8px; }
+    header h1 { font-size: 16px; margin-right: 4px; width: 100%; }
+    .seg button, button.act { padding: 8px 10px; font-size: 13px; }
+    #status { width: 100%; }
+    main { padding: 10px 10px 32px; }
+    .tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .tile .v { font-size: 20px; }
+    section { padding: 12px; }
+    .chart { height: 240px; } .chart.short { height: 130px; }
+    #heat { grid-template-columns: 40px repeat(24, 1fr); gap: 1px; font-size: 9px; }
+    #heat .cell { height: 10px; } #heat .lbl { line-height: 10px; padding-right: 3px; }
+    th, td { padding: 6px 5px; font-size: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -116,13 +137,13 @@
   <section>
     <h2>Cost under Ergon tariffs</h2>
     <p class="sub">Dollars per day for the selected range, 1 July 2026 rates inc GST, feed-in credited. "As needed" tops up in the cheap window only as much as that night needs; "Fill" always fills to 100% in the window. Both include 8% charging losses.</p>
-    <table id="costs"></table>
+    <div class="scroll"><table id="costs"></table></div>
   </section>
 
   <section>
     <h2>Inverter schedule</h2>
     <p class="sub">Time segments currently set on the inverter, as last read from the API.</p>
-    <table id="sched"></table>
+    <div class="scroll"><table id="sched"></table></div>
   </section>
 </main>
 <div class="tip" id="tip"></div>
@@ -291,6 +312,7 @@ document.getElementById('btnLive').onclick = async (e) => {
   status('live values read');
 };
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', load);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 load();
 </script>
 </body>

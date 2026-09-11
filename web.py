@@ -105,6 +105,19 @@ def index():
     return render_template("index.html")
 
 
+@app.get("/manifest.json")
+def manifest():
+    return app.send_static_file("manifest.json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    # Served from the root so its scope covers the whole app.
+    resp = app.send_static_file("sw.js")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.get("/api/overview")
 def api_overview():
     days = request.args.get("days", type=int)

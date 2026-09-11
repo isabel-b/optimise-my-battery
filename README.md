@@ -110,6 +110,18 @@ sudo ./scripts/deploy/install.sh
 After that, pushing to `main` is the deploy. The repo is public so the mini pulls
 over HTTPS without any key.
 
+To install it as an app on a phone it must be served over HTTPS. Tailscale does that
+on the tailnet with a real certificate (the calorie-tracker already uses port 443):
+
+```
+sudo tailscale serve --bg --https=8443 5050
+tailscale serve status     # prints https://<machine>.<tailnet>.ts.net:8443
+```
+
+Open that URL in Chrome on the phone and choose "Install app". The page ships a web
+manifest, icons and a small service worker, so it opens standalone and keeps the
+last good data when the tailnet is unreachable.
+
 ## Layout
 
 - `foxess/client.py`: signed requests, endpoints, rate limiting
