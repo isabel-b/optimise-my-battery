@@ -96,6 +96,7 @@
   <button class="act" id="btnFetch" title="Fetches any missing days plus today. One API call per day.">Fetch new days</button>
   <button class="act" id="btnLive" title="One API call">Live now</button>
   <button class="act" id="btnSched" title="One or two API calls">Re-read schedule</button>
+  <button class="act" id="btnInstall" hidden>Install app</button>
   <span class="spacer"></span>
   <span id="status"></span>
 </header>
@@ -341,6 +342,11 @@ document.getElementById('btnLive').onclick = async (e) => {
 };
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', load);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+// Chrome fires this only when the page meets its install criteria (HTTPS, manifest, icons, service worker).
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; document.getElementById('btnInstall').hidden = false; });
+document.getElementById('btnInstall').onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; document.getElementById('btnInstall').hidden = true; };
+window.addEventListener('appinstalled', () => { document.getElementById('btnInstall').hidden = true; });
 load();
 </script>
 </body>
