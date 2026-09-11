@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.isabel.tailscaled-battery</string>
+    <!-- A second Tailscale node on the same machine, so the battery tracker gets its own
+         hostname (battery.<tailnet>.ts.net). Needed because Chrome on Android treats every
+         page on a hostname as belonging to the first PWA installed from it, whatever the port. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/opt/tailscale/bin/tailscaled</string>
+        <string>--tun=userspace-networking</string>
+        <string>--state=/var/lib/tailscale-battery/tailscaled.state</string>
+        <string>--socket=/var/run/tailscaled-battery.sock</string>
+        <string>--port=41642</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/opt/homebrew/var/log/tailscaled-battery.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/homebrew/var/log/tailscaled-battery.log</string>
+</dict>
+</plist>

@@ -134,6 +134,17 @@ Open that URL in Chrome on the phone and choose "Install app". The page ships a 
 manifest, icons and a small service worker, so it opens standalone and keeps the
 last good data when the tailnet is unreachable.
 
+**If another PWA is already installed from the same hostname** (here, the calorie
+tracker on port 443), Chrome on Android treats every page on that hostname as part of
+it, regardless of port, and offers "Open <that app>" instead of an install. The fix is a
+second Tailscale node on the mini with its own name:
+
+```
+sudo ./scripts/deploy/setup-battery-node.sh    # joins the tailnet as "battery", serves 5050
+```
+
+Then the app lives at `https://battery.<tailnet>.ts.net/` and installs normally.
+
 ## Layout
 
 - `foxess/client.py`: signed requests, endpoints, rate limiting
