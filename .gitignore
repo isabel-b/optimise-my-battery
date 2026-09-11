@@ -8,3 +8,4 @@ __pycache__/
 .pytest_cache/
 .api
 scripts/deploy/logs/
+.apply-schedule

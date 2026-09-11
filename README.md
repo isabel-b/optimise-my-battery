@@ -77,13 +77,25 @@ load will be much higher and solar can be interrupted by cloud for days, so re-r
 analysis on summer data before settling on a schedule. The daytime free/cheap window
 strategy ("Fill" in the cost table) is likely to look much better in summer than it does here.
 
-## Next step: writing the schedule
+## Force-charge planner
 
-`FoxClient.scheduler_set` in `foxess/client.py` targets the endpoint the inverter accepts
-(`/op/v1/device/scheduler/enable`) but has not been run against the real device yet.
-The plan is a daily job around 10:45 that reads SoC and a solar forecast, decides how much
-top-up is needed for the coming night, and sets a ForceCharge segment inside 11:00-16:00
-(or leaves the existing Backup segment alone on days that do not need it).
+`planner.py` runs at 10:45 each day (launchd job `plan`) and decides whether the
+11:00-16:00 segment should be ForceCharge or stay as Backup:
+
+1. Live battery SoC and the estimated capacity.
+2. Solar expected before 16:00: Open-Meteo radiation (no key; site from `LAT`/`LON`/`TZ`
+   in `.env`) times a factor fitted on the last 60 days of our own PV, scaled by how this
+   morning's actual PV compared to its forecast, then multiplied by 0.75 because a wrong
+   "charge" costs about 7c/kWh and a wrong "don't charge" about 26c/kWh.
+3. Tonight's need: 75th percentile of what the battery supplied from 16:00 to 11:00 over
+   the last 14 cycles, counting grid import at the floor as unmet need.
+4. Target SoC at 16:00 = floor + need / capacity + 5%. If the expected SoC falls short, the
+   segment becomes ForceCharge with `maxSoc` = target; otherwise Backup.
+
+It is a **dry run by default**: decisions are recorded in the `decisions` table and shown on
+the dashboard, but nothing is written. Creating an empty file `.apply-schedule` in the repo
+root on the mini turns writes on; deleting it turns them off. Replay a past morning with
+`python planner.py --now 2026-08-30T10:45`.
 
 ## Running it on a Mac mini
 

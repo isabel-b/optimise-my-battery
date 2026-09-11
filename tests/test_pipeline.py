@@ -118,3 +118,36 @@ def test_topup_simulation_moves_import_into_cheap_window(tmp_path: Path):
     assert set(table["strategy"]) == {"actual", "foresight", "fill"}
     row = table.set_index(["tariff", "strategy"])["total_$"]
     assert row[("12E", "foresight")] < row[("12E", "actual")]
+
+
+def test_planner_decide():
+    import planner
+    # Battery half full, sunny afternoon, small night need -> no top-up.
+    d = planner.decide(soc_now=50, capacity=40, floor=20, solar_window=25, load_window=10, need_night=12)
+    assert d["mode"] == "Backup"
+    # Battery low, cloudy, big night need -> force charge to floor + need + margin.
+    d = planner.decide(soc_now=30, capacity=40, floor=20, solar_window=6, load_window=10, need_night=20)
+    assert d["mode"] == "ForceCharge"
+    assert d["target_soc_end"] == 20 + 50 + 5
+    assert d["max_soc"] == 75 and d["deficit_kwh"] == pytest.approx(18.0, abs=0.01)
+    # Target is capped at 100.
+    d = planner.decide(soc_now=30, capacity=40, floor=20, solar_window=0, load_window=10, need_night=45)
+    assert d["max_soc"] == 100
+    # Pessimism reduces the credited solar; surplus is capped by headroom.
+    d = planner.decide(soc_now=95, capacity=40, floor=20, solar_window=40, load_window=5, need_night=30)
+    assert d["expected_soc_end"] == 100 and d["mode"] == "Backup"
+
+
+def test_planner_night_need_counts_unmet_import(tmp_path: Path):
+    import planner
+    conn = store.connect(tmp_path / "n.sqlite")
+    for i in range(6):
+        store.insert_history(conn, "T", fake_day(datetime(2026, 8, 1) + timedelta(days=i), pv_peak=1.2))
+    import analyse
+    df = analyse.load_history(conn, "T")
+    floor = float(df["SoC"].quantile(0.02))
+    need = planner.night_need(df, ("11:00", "16:00"), floor)
+    assert need["cycles"] >= 4
+    # synthetic house draws ~0.4 kW baseline + evening peak: need must be positive and plausible
+    assert 5 < need["need_p75"] < 25
+    assert 1 < planner.window_load(df, ("11:00", "16:00")) < 10  # synthetic house draws 0.4 kW midday

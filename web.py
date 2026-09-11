@@ -151,6 +151,32 @@ def api_live():
         return jsonify({"error": str(e)}), 502
 
 
+@app.get("/api/plan")
+def api_plan():
+    conn = store.connect()
+    conn.executescript("CREATE TABLE IF NOT EXISTS decisions (ts TEXT PRIMARY KEY, day TEXT NOT NULL, mode TEXT NOT NULL, "
+                       "max_soc INTEGER, deficit_kwh REAL, inputs TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0, result TEXT);")
+    rows = []
+    for ts, mode, max_soc, deficit, inputs, applied, result in conn.execute(
+            "SELECT ts, mode, max_soc, deficit_kwh, inputs, applied, result FROM decisions ORDER BY ts DESC LIMIT 14"):
+        i = json.loads(inputs)
+        rows.append({"ts": ts, "mode": mode, "max_soc": max_soc, "deficit_kwh": deficit, "applied": bool(applied),
+                     "soc_now": i.get("soc_now"), "solar_window_used": i.get("solar_window_used"),
+                     "need_p75": i.get("need_p75"), "expected_soc_end": i.get("expected_soc_end"),
+                     "target_soc_end": i.get("target_soc_end"), "morning_factor": i.get("morning_factor"),
+                     "result": json.loads(result) if result else None})
+    armed = (Path(__file__).parent / ".apply-schedule").exists()
+    return jsonify({"armed": armed, "decisions": rows})
+
+
+@app.post("/api/plan/run")
+def api_plan_run():
+    """Dry run of the planner on demand (one live SoC read plus the weather fetch)."""
+    proc = subprocess.run([sys.executable, "planner.py"], capture_output=True, text=True,
+                          cwd=Path(__file__).parent, timeout=180)
+    return jsonify({"ok": proc.returncode == 0, "log": (proc.stdout + proc.stderr)[-3000:]})
+
+
 @app.post("/api/schedule/refresh")
 def api_schedule_refresh():
     proc = subprocess.run([sys.executable, "fetch.py", "schedule"], capture_output=True, text=True,

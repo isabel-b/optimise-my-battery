@@ -141,6 +141,14 @@
   </section>
 
   <section>
+    <h2>Force-charge planner <span id="planArmed" style="font-weight:400;font-size:12px;color:var(--muted)"></span></h2>
+    <p class="sub">Runs at 10:45 each day. Forecasts the afternoon's solar, estimates tonight's need from the last 14 nights, and decides whether the 11:00 to 16:00 segment should be ForceCharge or stay as Backup.</p>
+    <button class="act" id="btnPlan" title="One live API call plus a weather fetch; writes nothing">Run planner now (dry run)</button>
+    <pre id="planLog" style="font-size:12px;white-space:pre-wrap;color:var(--ink2);margin:8px 0 0" hidden></pre>
+    <div class="scroll"><table id="plan"></table></div>
+  </section>
+
+  <section>
     <h2>Inverter schedule</h2>
     <p class="sub">Time segments currently set on the inverter, as last read from the API.</p>
     <div class="scroll"><table id="sched"></table></div>
@@ -278,12 +286,32 @@ function renderSched(d) {
   document.getElementById('sched').innerHTML = html;
 }
 
+async function loadPlan() {
+  const r = await fetch('/api/plan'); const d = await r.json();
+  document.getElementById('planArmed').textContent = d.armed ? '· live writes enabled' : '· dry run only (writes disabled)';
+  if (!d.decisions.length) { document.getElementById('plan').innerHTML = '<tr><td>No decisions recorded yet.</td></tr>'; return; }
+  let html = '<tr><th>When</th><th>SoC now</th><th>Solar credited</th><th>Night need</th><th>Expected 16:00</th><th>Target</th><th>Decision</th><th>Applied</th></tr>';
+  for (const x of d.decisions) {
+    const dec = x.mode === 'ForceCharge' ? `ForceCharge to ${x.max_soc}% (+${fmt(x.deficit_kwh)} kWh)` : 'Backup';
+    const ap = x.applied ? (x.result && x.result.changed === false ? 'no change' : (x.result && x.result.verified ? 'yes' : 'unverified')) : 'dry run';
+    html += `<tr><td>${x.ts.slice(0, 16)}</td><td>${fmt(x.soc_now, 0)}%</td><td>${fmt(x.solar_window_used)} kWh</td><td>${fmt(x.need_p75)} kWh</td><td>${fmt(x.expected_soc_end, 0)}%</td><td>${fmt(x.target_soc_end, 0)}%</td><td>${dec}</td><td>${ap}</td></tr>`;
+  }
+  document.getElementById('plan').innerHTML = html;
+}
+document.getElementById('btnPlan').onclick = async (e) => {
+  e.target.disabled = true; status('running planner…');
+  const r = await fetch('/api/plan/run', { method: 'POST' }); const j = await r.json();
+  const pre = document.getElementById('planLog'); pre.hidden = false; pre.textContent = j.log;
+  e.target.disabled = false; status(j.ok ? 'planner finished' : 'planner failed'); loadPlan();
+};
+
 async function load() {
   status('loading…');
   const r = await fetch(`/api/overview?days=${days}`); const d = await r.json();
   if (d.error) { status(d.error); return; }
   renderTiles(d); renderDaily(d); renderProfile(d); renderHeat(d); renderFindings(d); renderCosts(d); renderSched(d);
   status(`${d.summary.period} · ${d.summary.days} complete days`);
+  loadPlan();
 }
 
 document.querySelectorAll('#range button').forEach(b => b.onclick = () => {

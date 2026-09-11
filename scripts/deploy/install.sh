@@ -10,7 +10,7 @@ if [ "$(id -u)" -ne 0 ]; then echo "Run with sudo so the jobs survive a reboot: 
 mkdir -p "$REPO_DIR/scripts/deploy/logs"; chown -R "$RUN_USER" "$REPO_DIR/scripts/deploy/logs"
 chmod +x "$REPO_DIR"/scripts/deploy/*.sh
 echo "Installing for user '$RUN_USER' from $REPO_DIR"
-for label in server fetch deploy; do
+for label in server fetch plan deploy; do
     SRC="$REPO_DIR/scripts/deploy/com.isabel.optimise-my-battery.${label}.plist"
     DST="$DAEMONS/com.isabel.optimise-my-battery.${label}.plist"
     sed -e "s|REPLACE_WITH_REPO_PATH|$REPO_DIR|g" -e "s|REPLACE_WITH_USER|$RUN_USER|g" "$SRC" > "$DST"
