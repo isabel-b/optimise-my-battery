@@ -85,6 +85,31 @@ The plan is a daily job around 10:45 that reads SoC and a solar forecast, decide
 top-up is needed for the coming night, and sets a ForceCharge segment inside 11:00-16:00
 (or leaves the existing Backup segment alone on days that do not need it).
 
+## Running it on a Mac mini
+
+The intended home is an always-on Mac mini; the laptop is only for development.
+`scripts/deploy/` holds the pieces, modelled on the calorie-tracker deployment:
+
+- `start-server.sh`: the dashboard, bound to all interfaces (`HOST=0.0.0.0`) so it is
+  reachable on the LAN and over Tailscale
+- `fetch-daily.sh`: nightly at 00:30, pulls the last three days of history and two
+  months of reports (about five API calls)
+- `deploy.sh`: every two minutes, pulls `main` and restarts the server if it changed
+- `install.sh`: installs the three as LaunchDaemons (needs `sudo` so they start at boot)
+
+First time on the mini:
+
+```
+cd ~ && git clone https://github.com/isabel-b/optimise-my-battery.git
+cd optimise-my-battery
+/opt/homebrew/bin/python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# copy .api (and data/foxess.sqlite if you have history already) from the laptop
+sudo ./scripts/deploy/install.sh
+```
+
+After that, pushing to `main` is the deploy. The repo is public so the mini pulls
+over HTTPS without any key.
+
 ## Layout
 
 - `foxess/client.py`: signed requests, endpoints, rate limiting

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.isabel.optimise-my-battery.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>REPLACE_WITH_REPO_PATH/scripts/deploy/start-server.sh</string>
+    </array>
+    <!-- LaunchDaemon so it runs at boot with nobody logged in; as the repo owner so .api and the database are readable. -->
+    <key>UserName</key>
+    <string>REPLACE_WITH_USER</string>
+    <key>WorkingDirectory</key>
+    <string>REPLACE_WITH_REPO_PATH</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>REPLACE_WITH_REPO_PATH/scripts/deploy/logs/server.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>REPLACE_WITH_REPO_PATH/scripts/deploy/logs/server.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>OMB_REPO</key>
+        <string>REPLACE_WITH_REPO_PATH</string>
+        <key>OMB_USER</key>
+        <string>REPLACE_WITH_USER</string>
+    </dict>
+</dict>
+</plist>

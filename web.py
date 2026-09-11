@@ -147,6 +147,7 @@ def api_schedule_refresh():
 
 
 if __name__ == "__main__":
+    host = os.environ.get("HOST", "127.0.0.1")   # set HOST=0.0.0.0 to serve the LAN/Tailscale
     port = int(os.environ.get("PORT", "5050"))
-    print(f"Dashboard: http://127.0.0.1:{port}")
-    app.run(host="127.0.0.1", port=port, debug=False)
+    print(f"Dashboard: http://{host}:{port}")
+    app.run(host=host, port=port, debug=False, threaded=True)
